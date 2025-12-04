@@ -24,6 +24,7 @@
     font-size: 22px;
     position: relative;
   }
+  /* Estilos do ícone de Configurações (Admin) */
   #admin-icon {
     position: absolute;
     top: 15px;
@@ -34,6 +35,19 @@
     transition: opacity 0.3s;
   }
   #admin-icon:hover { opacity: 1; }
+  
+  /* ✅ NOVO CSS: Ícone de Atualizar/Limpar Cache */
+  #refresh-icon {
+    position: absolute;
+    top: 15px;
+    left: 15px; /* Posiciona à esquerda */
+    font-size: 24px;
+    cursor: pointer;
+    opacity: 0.2;
+    transition: opacity 0.3s;
+  }
+  #refresh-icon:hover { opacity: 1; }
+  
   .tabs {
     display: flex;
   }
@@ -48,7 +62,7 @@
   }
   .tabs button.active { background: #bbb; font-weight: bold; }
   
-  /* Correção: Define que o conteúdo da aba deve ser escondido por padrão */
+  /* Garante que o conteúdo da aba correta é exibido como grid */
   .tab-content {
     display: none; 
     padding: 15px;
@@ -56,8 +70,6 @@
     gap: 15px;
   }
   
-  /* ... restante do CSS (não alterado) ... */
-
   .product {
     background: #fff;
     padding: 15px;
@@ -207,6 +219,7 @@
 </head>
 <body>
 <header>
+  <span id="refresh-icon" title="FORÇAR ATUALIZAÇÃO E LIMPAR CACHE" onclick="clearCacheAndReload()">🔄</span> 
   🍔 JP HOUSE & BEER
   <span id="admin-icon" title="CADASTRO DE PRODUTOS">⚙️</span>
 </header>
@@ -264,8 +277,8 @@
     <input id="p-price" type="number" step="0.01" style="width: 100%" /><br /><br />
     <label>CATEGORIA:</label>
     <select id="p-category" style="width: 100%">
-      <option value="sanduiches">SANDUÍCHES</option>
-      <option value="acompanhamentos">ACOMPANHAMENTOS</option>
+      <option value="sanduiches">SANDUÍCHE</option>
+      <option value="acompanhamentos">ACOMPANHAMENTO</option>
       <option value="bebidas">BEBIDAS</option>
     </select>
     <br /><br />
@@ -278,14 +291,14 @@
 
 <script>
 // ================= LISTA DE PRODUTOS INICIAIS (EMBUTIDA) =================
+// Use esta lista para garantir que os produtos corretos sejam carregados.
 const INITIAL_PRODUCTS = [
-    { name: "SERTANEJO MODINHA", price: 4.99, category: "sanduiches" },
+    { name: "SERTANEJO GOURMET", price: 4.99, category: "sanduiches" },
     { name: "COSTELA DESFIADA", price: 5.49, category: "sanduiches" },
     { name: "BATATA FRITA - 100G", price: 1.99, category: "acompanhamentos" },
     { name: "MACAXEIRA FRITA - 100G", price: 1.99, category: "acompanhamentos" },
     { name: "COCA COLA ZERO - 350ML", price: 2.49, category: "bebidas" },
     { name: "GUARANA ZERO - 350ML", price: 2.49, category: "bebidas" },
-    { name: "HEINEKEN - 350ML", price: 2.99, category: "bebidas" },
 ];
 
 // Carrega as listas salvas (Comanda e Produtos)
@@ -293,17 +306,14 @@ let storedProducts = JSON.parse(localStorage.getItem("products") || "[]");
 let comanda = JSON.parse(localStorage.getItem("comanda") || "[]");
 
 // ================= LÓGICA DE FUSÃO (MERGE) DE PRODUTOS =================
+// Garante que novos itens no código (INITIAL_PRODUCTS) sejam adicionados à lista salva.
 const storedProductMap = new Map(storedProducts.map(p => [p.name, p]));
 let updatedProducts = [...storedProducts];
 
 INITIAL_PRODUCTS.forEach(initialP => {
-    // Se o item do código não existe na lista salva (pelo nome), adiciona-o.
     if (!storedProductMap.has(initialP.name)) {
         updatedProducts.push(initialP);
     }
-    // OBS: Se você mudar o preço de um item existente no código, 
-    // a versão salva no localStorage (que pode ter sido alterada pelo Admin) será mantida,
-    // garantindo que as alterações do Admin não sejam perdidas.
 });
 
 // Define a lista de produtos principal com o resultado da fusão
@@ -329,6 +339,7 @@ if ('serviceWorker' in navigator) {
       });
   });
 }
+// ================= FIM DO REGISTRO SW =================
 
 document.getElementById("admin-icon").addEventListener("click", () => {
   let senha = prompt("DIGITE A SENHA:");
@@ -346,6 +357,18 @@ function showToast(msg){
   setTimeout(()=>{ toast.classList.remove("show"); },2000);
 }
 
+// ✅ NOVO CÓDIGO: Limpa o localStorage e recarrega a página
+function clearCacheAndReload() {
+    if (confirm("ATUALIZA A BASE DE DADOS E LIMPA CACHE.")) {
+        // Limpa as chaves de produtos e comanda
+        localStorage.removeItem("products");
+        localStorage.removeItem("comanda");
+        
+        // Recarrega a página para carregar a lista INITIAL_PRODUCTS do código
+        window.location.reload(true); 
+    }
+}
+
 // ================= Produtos =================
 function saveProduct(editIndex){
   let name=document.getElementById("p-name").value.trim();
@@ -354,9 +377,10 @@ function saveProduct(editIndex){
   if(!name||isNaN(price)){ alert("PREENCHA NOME E PREÇO CORRETAMENTE."); return; }
   if(editIndex!==undefined) products[editIndex]={name,price,category};
   else products.push({name,price,category});
-  // Salva no localStorage para persistir as alterações em tempo de execução
   localStorage.setItem("products",JSON.stringify(products)); 
   renderProducts(); renderAdminList(); closeAdminInputs();
+  // Se for uma edição, garante que a ação do botão volte para Salvar Novo
+  if(editIndex!==undefined) document.querySelector('#admin-modal button[onclick*="saveProduct"]').onclick = () => saveProduct();
 }
 
 function renderProducts(){
@@ -399,10 +423,9 @@ function addToComanda(index){
   let existe=comanda.find(item=>item.name===p.name);
   if(existe) existe.qty+=qty; else comanda.push({name:p.name,qty,price:p.price});
   updateComandaCount();
-  // Comanda também deve ser salva no localStorage para persistir entre aberturas e reaberturas
-  localStorage.setItem("comanda",JSON.stringify(comanda)); 
+  localStorage.setItem("comanda",JSON.stringify(comanda));
   showToast(`${qty}X ${p.name} adicionado!`);
-  // Reseta o contador para 1 após adicionar
+  // ✅ CORREÇÃO: Reseta o contador de volta para 1
   document.getElementById("qty-"+index).innerText = "1";
 }
 
@@ -514,19 +537,23 @@ function editProduct(index){
   document.getElementById("p-name").value = p.name;
   document.getElementById("p-price").value = p.price;
   document.getElementById("p-category").value = p.category;
-  // CORREÇÃO: Removido 'saveProduct(index);'. A edição deve ser salva manualmente pelo botão SALVAR.
+  // ✅ CORREÇÃO: Altera a ação do botão SALVAR para salvar a edição, evitando salvar dados incompletos
+  document.querySelector('#admin-modal button[onclick*="saveProduct"]').onclick = () => saveProduct(index);
 }
 
 function deleteProduct(index){
   if(confirm("DESEJA EXCLUIR ESTE PRODUTO?")){
     products.splice(index,1);
-    // Persiste a exclusão
     localStorage.setItem("products",JSON.stringify(products)); 
     renderProducts(); renderAdminList();
   }
 }
 
-function closeAdmin(){ closeModal("admin-modal"); }
+function closeAdmin(){ 
+  closeModal("admin-modal"); 
+  // ✅ CORREÇÃO: Reseta o botão Salvar para o modo "Novo Produto" ao fechar o modal
+  document.querySelector('#admin-modal button[onclick*="saveProduct"]').onclick = () => saveProduct();
+}
 function closeAdminInputs(){ document.getElementById("p-name").value=""; document.getElementById("p-price").value=""; document.getElementById("p-category").value="sanduiches"; }
 
 // ================= Tabs =================
